@@ -2,7 +2,7 @@
 # Configuration validation subroutine script.
 #   Copyright 1992-2017 Free Software Foundation, Inc.
 
-timestamp='2017-04-02'
+timestamp='2017-10-28'
 
 # This file is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by
@@ -1584,6 +1584,9 @@ case $os in
 	-emscripten*)
 		;;
 	-none)
+		;;
+        -switch)
+		os=-switch
 		;;
 	*)
 		# Get rid of the `-' at the beginning of $os.

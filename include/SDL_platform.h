@@ -170,6 +170,10 @@
 #define __SDL_NOGETPROCADDR__
 #endif
 
+#if defined(SWITCH)
+#undef __SWITCH__
+#define __SWITCH__ 1
+#endif
 
 #include "begin_code.h"
 /* Set up for C function definitions, even when using C++ */
