@@ -170,7 +170,11 @@
 #define __SDL_NOGETPROCADDR__
 #endif
 
-#if defined(SWITCH)
+#if defined(__SWITCH__)
+#undef __LINUX__
+#undef __linux__
+#undef __unix__
+#undef unix
 #undef __SWITCH__
 #define __SWITCH__ 1
 #endif
