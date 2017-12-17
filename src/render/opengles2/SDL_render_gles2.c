@@ -166,7 +166,8 @@ typedef enum
     GLES2_IMAGESOURCE_TEXTURE_BGR,
     GLES2_IMAGESOURCE_TEXTURE_YUV,
     GLES2_IMAGESOURCE_TEXTURE_NV12,
-    GLES2_IMAGESOURCE_TEXTURE_NV21
+    GLES2_IMAGESOURCE_TEXTURE_NV21,
+    GLES2_IMAGESOURCE_TEXTURE_EXTERNAL_OES
 } GLES2_ImageSource;
 
 typedef struct GLES2_DriverContext
@@ -593,8 +594,19 @@ GLES2_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture)
         format = GL_LUMINANCE;
         type = GL_UNSIGNED_BYTE;
         break;
+#ifdef GL_TEXTURE_EXTERNAL_OES
+    case SDL_PIXELFORMAT_EXTERNAL_OES:
+        format = GL_NONE;
+        type = GL_NONE;
+        break;
+#endif
     default:
         return SDL_SetError("Texture format not supported");
+    }
+
+    if (texture->format == SDL_PIXELFORMAT_EXTERNAL_OES &&
+        texture->access != SDL_TEXTUREACCESS_STATIC) {
+        return SDL_SetError("Unsupported texture access for SDL_PIXELFORMAT_EXTERNAL_OES");
     }
 
     /* Allocate a texture struct */
@@ -603,7 +615,11 @@ GLES2_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture)
         return SDL_OutOfMemory();
     }
     data->texture = 0;
+#ifdef GL_TEXTURE_EXTERNAL_OES
+    data->texture_type = (texture->format == SDL_PIXELFORMAT_EXTERNAL_OES) ? GL_TEXTURE_EXTERNAL_OES : GL_TEXTURE_2D;
+#else
     data->texture_type = GL_TEXTURE_2D;
+#endif
     data->pixel_format = format;
     data->pixel_type = type;
     data->yuv = ((texture->format == SDL_PIXELFORMAT_IYUV) || (texture->format == SDL_PIXELFORMAT_YV12));
@@ -692,9 +708,11 @@ GLES2_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture)
     renderdata->glTexParameteri(data->texture_type, GL_TEXTURE_MAG_FILTER, scaleMode);
     renderdata->glTexParameteri(data->texture_type, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     renderdata->glTexParameteri(data->texture_type, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    renderdata->glTexImage2D(data->texture_type, 0, format, texture->w, texture->h, 0, format, type, NULL);
-    if (GL_CheckError("glTexImage2D()", renderer) < 0) {
-        return -1;
+    if (texture->format != SDL_PIXELFORMAT_EXTERNAL_OES) {
+        renderdata->glTexImage2D(data->texture_type, 0, format, texture->w, texture->h, 0, format, type, NULL);
+        if (GL_CheckError("glTexImage2D()", renderer) < 0) {
+            return -1;
+        }
     }
 
     if (texture->access == SDL_TEXTUREACCESS_TARGET) {
@@ -950,7 +968,7 @@ static void GLES2_EvictShader(SDL_Renderer *renderer, GLES2_ShaderCacheEntry *en
 static GLES2_ProgramCacheEntry *GLES2_CacheProgram(SDL_Renderer *renderer,
                                                    GLES2_ShaderCacheEntry *vertex,
                                                    GLES2_ShaderCacheEntry *fragment);
-static int GLES2_SelectProgram(SDL_Renderer *renderer, GLES2_ImageSource source);
+static int GLES2_SelectProgram(SDL_Renderer *renderer, GLES2_ImageSource source, int w, int h);
 
 static GLES2_ProgramCacheEntry *
 GLES2_CacheProgram(SDL_Renderer *renderer, GLES2_ShaderCacheEntry *vertex,
@@ -1189,7 +1207,7 @@ GLES2_EvictShader(SDL_Renderer *renderer, GLES2_ShaderCacheEntry *entry)
 }
 
 static int
-GLES2_SelectProgram(SDL_Renderer *renderer, GLES2_ImageSource source)
+GLES2_SelectProgram(SDL_Renderer *renderer, GLES2_ImageSource source, int w, int h)
 {
     GLES2_DriverContext *data = (GLES2_DriverContext *)renderer->driverdata;
     GLES2_ShaderCacheEntry *vertex = NULL;
@@ -1216,13 +1234,55 @@ GLES2_SelectProgram(SDL_Renderer *renderer, GLES2_ImageSource source)
         ftype = GLES2_SHADER_FRAGMENT_TEXTURE_BGR_SRC;
         break;
     case GLES2_IMAGESOURCE_TEXTURE_YUV:
-        ftype = GLES2_SHADER_FRAGMENT_TEXTURE_YUV_SRC;
+        switch (SDL_GetYUVConversionModeForResolution(w, h)) {
+        case SDL_YUV_CONVERSION_JPEG:
+            ftype = GLES2_SHADER_FRAGMENT_TEXTURE_YUV_JPEG_SRC;
+            break;
+        case SDL_YUV_CONVERSION_BT601:
+            ftype = GLES2_SHADER_FRAGMENT_TEXTURE_YUV_BT601_SRC;
+            break;
+        case SDL_YUV_CONVERSION_BT709:
+            ftype = GLES2_SHADER_FRAGMENT_TEXTURE_YUV_BT709_SRC;
+            break;
+        default:
+            SDL_SetError("Unsupported YUV conversion mode: %d\n", SDL_GetYUVConversionModeForResolution(w, h));
+            goto fault;
+        }
         break;
     case GLES2_IMAGESOURCE_TEXTURE_NV12:
-        ftype = GLES2_SHADER_FRAGMENT_TEXTURE_NV12_SRC;
+        switch (SDL_GetYUVConversionModeForResolution(w, h)) {
+        case SDL_YUV_CONVERSION_JPEG:
+            ftype = GLES2_SHADER_FRAGMENT_TEXTURE_NV12_JPEG_SRC;
+            break;
+        case SDL_YUV_CONVERSION_BT601:
+            ftype = GLES2_SHADER_FRAGMENT_TEXTURE_NV12_BT601_SRC;
+            break;
+        case SDL_YUV_CONVERSION_BT709:
+            ftype = GLES2_SHADER_FRAGMENT_TEXTURE_NV12_BT709_SRC;
+            break;
+        default:
+            SDL_SetError("Unsupported YUV conversion mode: %d\n", SDL_GetYUVConversionModeForResolution(w, h));
+            goto fault;
+        }
         break;
     case GLES2_IMAGESOURCE_TEXTURE_NV21:
-        ftype = GLES2_SHADER_FRAGMENT_TEXTURE_NV21_SRC;
+        switch (SDL_GetYUVConversionModeForResolution(w, h)) {
+        case SDL_YUV_CONVERSION_JPEG:
+            ftype = GLES2_SHADER_FRAGMENT_TEXTURE_NV21_JPEG_SRC;
+            break;
+        case SDL_YUV_CONVERSION_BT601:
+            ftype = GLES2_SHADER_FRAGMENT_TEXTURE_NV21_BT601_SRC;
+            break;
+        case SDL_YUV_CONVERSION_BT709:
+            ftype = GLES2_SHADER_FRAGMENT_TEXTURE_NV21_BT709_SRC;
+            break;
+        default:
+            SDL_SetError("Unsupported YUV conversion mode: %d\n", SDL_GetYUVConversionModeForResolution(w, h));
+            goto fault;
+        }
+        break;
+    case GLES2_IMAGESOURCE_TEXTURE_EXTERNAL_OES:
+        ftype = GLES2_SHADER_FRAGMENT_TEXTURE_EXTERNAL_OES_SRC;
         break;
     default:
         goto fault;
@@ -1445,7 +1505,7 @@ GLES2_SetDrawingState(SDL_Renderer * renderer)
     GLES2_SetTexCoords(data, SDL_FALSE);
 
     /* Activate an appropriate shader and set the projection matrix */
-    if (GLES2_SelectProgram(renderer, GLES2_IMAGESOURCE_SOLID) < 0) {
+    if (GLES2_SelectProgram(renderer, GLES2_IMAGESOURCE_SOLID, 0, 0) < 0) {
         return -1;
     }
 
@@ -1672,6 +1732,9 @@ GLES2_SetupCopy(SDL_Renderer *renderer, SDL_Texture *texture)
             case SDL_PIXELFORMAT_NV21:
                 sourceType = GLES2_IMAGESOURCE_TEXTURE_NV21;
                 break;
+            case SDL_PIXELFORMAT_EXTERNAL_OES:
+                sourceType = GLES2_IMAGESOURCE_TEXTURE_EXTERNAL_OES;
+                break;
             default:
                 return SDL_SetError("Unsupported texture format");
             }
@@ -1702,12 +1765,15 @@ GLES2_SetupCopy(SDL_Renderer *renderer, SDL_Texture *texture)
             case SDL_PIXELFORMAT_NV21:
                 sourceType = GLES2_IMAGESOURCE_TEXTURE_NV21;
                 break;
+            case SDL_PIXELFORMAT_EXTERNAL_OES:
+                sourceType = GLES2_IMAGESOURCE_TEXTURE_EXTERNAL_OES;
+                break;
             default:
                 return SDL_SetError("Unsupported texture format");
         }
     }
 
-    if (GLES2_SelectProgram(renderer, sourceType) < 0) {
+    if (GLES2_SelectProgram(renderer, sourceType, texture->w, texture->h) < 0) {
         return -1;
     }
 
@@ -2169,6 +2235,9 @@ GLES2_CreateRenderer(SDL_Window *window, Uint32 flags)
     renderer->info.texture_formats[renderer->info.num_texture_formats++] = SDL_PIXELFORMAT_IYUV;
     renderer->info.texture_formats[renderer->info.num_texture_formats++] = SDL_PIXELFORMAT_NV12;
     renderer->info.texture_formats[renderer->info.num_texture_formats++] = SDL_PIXELFORMAT_NV21;
+#ifdef GL_TEXTURE_EXTERNAL_OES
+    renderer->info.texture_formats[renderer->info.num_texture_formats++] = SDL_PIXELFORMAT_EXTERNAL_OES;
+#endif
 
     GLES2_ResetState(renderer);
 

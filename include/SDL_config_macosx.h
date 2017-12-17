@@ -87,15 +87,33 @@
 #define HAVE_STRNCASECMP 1
 #define HAVE_VSSCANF 1
 #define HAVE_VSNPRINTF  1
+#define HAVE_M_PI   1
+#define HAVE_ACOS   1
+#define HAVE_ACOSF  1
+#define HAVE_ASIN   1
+#define HAVE_ASINF  1
+#define HAVE_ATAN   1
+#define HAVE_ATANF  1
+#define HAVE_ATAN2  1
+#define HAVE_ATAN2F 1
 #define HAVE_CEIL   1
+#define HAVE_CEILF  1
 #define HAVE_COPYSIGN   1
+#define HAVE_COPYSIGNF  1
 #define HAVE_COS    1
 #define HAVE_COSF   1
 #define HAVE_FABS   1
+#define HAVE_FABSF  1
 #define HAVE_FLOOR  1
+#define HAVE_FLOORF 1
+#define HAVE_FMOD   1
+#define HAVE_FMODF  1
 #define HAVE_LOG    1
+#define HAVE_LOGF   1
 #define HAVE_POW    1
+#define HAVE_POWF   1
 #define HAVE_SCALBN 1
+#define HAVE_SCALBNF    1
 #define HAVE_SIN    1
 #define HAVE_SINF   1
 #define HAVE_SQRT   1
@@ -107,10 +125,6 @@
 #define HAVE_NANOSLEEP  1
 #define HAVE_SYSCONF    1
 #define HAVE_SYSCTLBYNAME 1
-#define HAVE_ATAN 1
-#define HAVE_ATAN2 1
-#define HAVE_ACOS 1
-#define HAVE_ASIN 1
 
 /* Enable various audio drivers */
 #define SDL_AUDIO_DRIVER_COREAUDIO  1
@@ -165,9 +179,23 @@
 #define SDL_VIDEO_RENDER_OGL    1
 #endif
 
+#ifndef SDL_VIDEO_RENDER_OGL_ES2
+#define SDL_VIDEO_RENDER_OGL_ES2 1
+#endif
+
+#ifndef SDL_VIDEO_RENDER_METAL
+#define SDL_VIDEO_RENDER_METAL    1
+#endif
+
 /* Enable OpenGL support */
 #ifndef SDL_VIDEO_OPENGL
 #define SDL_VIDEO_OPENGL    1
+#endif
+#ifndef SDL_VIDEO_OPENGL_ES2
+#define SDL_VIDEO_OPENGL_ES2    1
+#endif
+#ifndef SDL_VIDEO_OPENGL_EGL
+#define SDL_VIDEO_OPENGL_EGL    1
 #endif
 #ifndef SDL_VIDEO_OPENGL_CGL
 #define SDL_VIDEO_OPENGL_CGL    1

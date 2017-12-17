@@ -362,6 +362,7 @@ KMSDRM_VideoInit(_THIS)
                  vdata->saved_crtc->y, vdata->saved_crtc->width, vdata->saved_crtc->height);
     data->crtc_id = encoder->crtc_id;
     data->cur_mode = vdata->saved_crtc->mode;
+    vdata->crtc_id = encoder->crtc_id;
 
     SDL_zero(current_mode);
 
@@ -525,7 +526,7 @@ KMSDRM_CreateWindow(_THIS, SDL_Window * window)
 
     /* In case we want low-latency, double-buffer video, we take note here */
     wdata->double_buffer = SDL_FALSE;
-    if (SDL_GetHintBoolean(SDL_HINT_KMSDRM_DOUBLE_BUFFER, SDL_FALSE)) {
+    if (SDL_GetHintBoolean(SDL_HINT_VIDEO_DOUBLE_BUFFER, SDL_FALSE)) {
         wdata->double_buffer = SDL_TRUE;
     }
 

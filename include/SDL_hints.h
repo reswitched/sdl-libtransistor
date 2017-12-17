@@ -76,6 +76,7 @@ extern "C" {
  *    "opengl"
  *    "opengles2"
  *    "opengles"
+ *    "metal"
  *    "software"
  *
  *  The default varies by platform, but it's the first one in the list that
@@ -719,6 +720,19 @@ extern "C" {
  */
 #define SDL_HINT_ANDROID_SEPARATE_MOUSE_AND_TOUCH "SDL_ANDROID_SEPARATE_MOUSE_AND_TOUCH"
 
+ /**
+ * \brief A variable to control whether the return key on the soft keyboard should hide the 
+ * soft keyboard on Android.
+ *
+ * The variable can be set to the following values:
+ *   "0"       - The return key will be handled as a key event. This is the behaviour of 
+ *               SDL <= 2.0.3. (default)
+ *   "1"       - The return key will hide the keyboard.
+ *
+ * The value of this hint is used at runtime, so it can be changed at any time.
+ */
+#define SDL_HINT_ANDROID_RETURN_HIDES_IME "SDL_ANDROID_RETURN_HIDES_IME"
+
 /**
  *  \brief override the binding element for keyboard inputs for Emscripten builds
  *
@@ -798,14 +812,22 @@ extern "C" {
 #define SDL_HINT_RPI_VIDEO_LAYER           "SDL_RPI_VIDEO_LAYER"
 
 /**
- * \brief Tell SDL the KMS/DRM video driver that we want double buffer only.
+ * \brief Tell the video driver that we only want a double buffer.
  *
- * By default KMS/DRM will use a triple buffer solution that wastes no CPU
- * time on waiting for vsync after issuing a flip, but introduces a frame of
- * latency. Waiting for vsync immediately after issuing a flip on the other
- * hand is recommended for cases where low latency is an important factor.
+ * By default, most lowlevel 2D APIs will use a triple buffer scheme that 
+ * wastes no CPU time on waiting for vsync after issuing a flip, but
+ * introduces a frame of latency. On the other hand, using a double buffer
+ * scheme instead is recommended for cases where low latency is an important
+ * factor because we save a whole frame of latency.
+ * We do so by waiting for vsync immediately after issuing a flip, usually just
+ * after eglSwapBuffers call in the backend's *_SwapWindow function.
+ *
+ * Since it's driver-specific, it's only supported where possible and
+ * implemented. Currently supported the following drivers:
+ * - KMSDRM (kmsdrm)
+ * - Raspberry Pi (raspberrypi)
  */
-#define SDL_HINT_KMSDRM_DOUBLE_BUFFER      "SDL_KMSDRM_DOUBLE_BUFFER"
+#define SDL_HINT_VIDEO_DOUBLE_BUFFER      "SDL_VIDEO_DOUBLE_BUFFER"
 
 /**
  *  \brief  A variable controlling what driver to use for OpenGL ES contexts.

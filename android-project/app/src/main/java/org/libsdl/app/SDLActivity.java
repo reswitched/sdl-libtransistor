@@ -18,6 +18,7 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.os.*;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.SparseArray;
 import android.graphics.*;
@@ -210,6 +211,20 @@ public class SDLActivity extends Activity {
 
         setContentView(mLayout);
 
+        /* 
+         * Per SDL_androidwindow.c, Android will only ever have one window, and that window 
+         * is always flagged SDL_WINDOW_FULLSCREEN.  Let's treat it as an immersive fullscreen 
+         * window for Android UI purposes, as a result.
+         */
+        int iFlags = 
+            //View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | // Only available since API 19
+            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+            View.SYSTEM_UI_FLAG_FULLSCREEN;
+
+        getWindow().getDecorView().setSystemUiVisibility(iFlags);        
+
         // Get filename from "Open with" of another application
         Intent intent = getIntent();
         if (intent != null && intent.getData() != null) {
@@ -370,27 +385,8 @@ public class SDLActivity extends Activity {
                     // Start up the C app thread and enable sensor input for the first time
                     // FIXME: Why aren't we enabling sensor input at start?
 
-                    final Thread sdlThread = new Thread(new SDLMain(), "SDLThread");
+                    mSDLThread = new Thread(new SDLMain(), "SDLThread");
                     mSurface.enableSensor(Sensor.TYPE_ACCELEROMETER, true);
-                    sdlThread.start();
-
-                    // Set up a listener thread to catch when the native thread ends
-                    mSDLThread = new Thread(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                sdlThread.join();
-                            } catch (Exception e) {
-                                // Ignore any exception
-                            } finally {
-                                // Native thread has finished
-                                if (!mExitCalledFromJava) {
-                                    handleNativeExit();
-                                }
-                            }
-                        }
-                    }, "SDLThreadListener");
-
                     mSDLThread.start();
                 }
 
@@ -516,6 +512,7 @@ public class SDLActivity extends Activity {
     public static native void onNativeSurfaceChanged();
     public static native void onNativeSurfaceDestroyed();
     public static native String nativeGetHint(String name);
+    public static native void nativeSetenv(String name, String value);
 
     /**
      * This method is called by SDL using JNI.
@@ -542,41 +539,39 @@ public class SDLActivity extends Activity {
      */
     public void setOrientationBis(int w, int h, boolean resizable, String hint) 
     {
-      int orientation = -1;
+        int orientation = -1;
 
-      if (hint != "") {
-         if (hint.contains("LandscapeRight") && hint.contains("LandscapeLeft")) {
+        if (hint.contains("LandscapeRight") && hint.contains("LandscapeLeft")) {
             orientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
-         } else if (hint.contains("LandscapeRight")) {
+        } else if (hint.contains("LandscapeRight")) {
             orientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
-         } else if (hint.contains("LandscapeLeft")) {
+        } else if (hint.contains("LandscapeLeft")) {
             orientation = ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
-         } else if (hint.contains("Portrait") && hint.contains("PortraitUpsideDown")) {
+        } else if (hint.contains("Portrait") && hint.contains("PortraitUpsideDown")) {
             orientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT;
-         } else if (hint.contains("Portrait")) {
+        } else if (hint.contains("Portrait")) {
             orientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
-         } else if (hint.contains("PortraitUpsideDown")) {
+        } else if (hint.contains("PortraitUpsideDown")) {
             orientation = ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT;
-         }
-      }
+        }
 
-      /* no valid hint */
-      if (orientation == -1) {
-         if (resizable) {
-            /* no fixed orientation */
-         } else {
-            if (w > h) {
-               orientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
+        /* no valid hint */
+        if (orientation == -1) {
+            if (resizable) {
+                /* no fixed orientation */
             } else {
-               orientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT;
+                if (w > h) {
+                    orientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
+                } else {
+                    orientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT;
+                }
             }
-         }
-      }
+        }
 
-      Log.v("SDL", "setOrientation() orientation=" + orientation + " width=" + w +" height="+ h +" resizable=" + resizable + " hint=" + hint);
-      if (orientation != -1) {
-         mSingleton.setRequestedOrientation(orientation);
-      }
+        Log.v("SDL", "setOrientation() orientation=" + orientation + " width=" + w +" height="+ h +" resizable=" + resizable + " hint=" + hint);
+        if (orientation != -1) {
+            mSingleton.setRequestedOrientation(orientation);
+        }
     }
 
 
@@ -615,27 +610,35 @@ public class SDLActivity extends Activity {
         return SDL.getContext();
     }
 
+    public static DisplayMetrics getDisplayDPI() {
+        return getContext().getResources().getDisplayMetrics();
+    }
+
     /**
      * This method is called by SDL using JNI.
      */
-    public static String getManifestEnvironmentVariable(String variableName) {
+    public static boolean getManifestEnvironmentVariables() {
         try {
             ApplicationInfo applicationInfo = getContext().getPackageManager().getApplicationInfo(getContext().getPackageName(), PackageManager.GET_META_DATA);
-            if (applicationInfo.metaData == null) {
-                return null;
+            Bundle bundle = applicationInfo.metaData;
+            if (bundle == null) {
+                return false;
             }
-
-            String key = "SDL_ENV." + variableName;
-            if (!applicationInfo.metaData.containsKey(key)) {
-                return null;
+			String prefix = "SDL_ENV.";
+            final int trimLength = prefix.length();
+            for (String key : bundle.keySet()) {
+                if (key.startsWith(prefix)) {
+                    String name = key.substring(trimLength);
+                    String value = bundle.get(key).toString();
+                    nativeSetenv(name, value);
+                }
             }
-
-            return applicationInfo.metaData.get(key).toString();
+            /* environment variables set! */
+            return true; 
+        } catch (Exception e) {
+           Log.v("SDL", "exception " + e.toString());
         }
-        catch (PackageManager.NameNotFoundException e)
-        {
-            return null;
-        }
+        return false;
     }
 
     static class ShowTextInputTask implements Runnable {
@@ -1041,6 +1044,11 @@ class SDLMain implements Runnable {
         SDLActivity.nativeRunMain(library, function, arguments);
 
         Log.v("SDL", "Finished main function");
+
+        // Native thread has finished, let's finish the Activity
+        if (!SDLActivity.mExitCalledFromJava) {
+            SDLActivity.handleNativeExit();
+        }
     }
 }
 
@@ -1493,6 +1501,25 @@ class SDLInputConnection extends BaseInputConnection {
          * and so we need to generate them ourselves in commitText.  To avoid duplicates on the handful of keys
          * that still do, we empty this out.
          */
+
+        /*
+         * Return DOES still generate a key event, however.  So rather than using it as the 'click a button' key
+         * as we do with physical keyboards, let's just use it to hide the keyboard.
+         */
+
+        if (event.getKeyCode() == 66) {
+            String imeHide = SDLActivity.nativeGetHint("SDL_ANDROID_RETURN_HIDES_IME");
+            if ((imeHide != null) && imeHide.equals("1")) {
+                Context c = SDL.getContext();
+                if (c instanceof SDLActivity) {
+                    SDLActivity activity = (SDLActivity)c;
+                    activity.sendCommand(SDLActivity.COMMAND_TEXTEDIT_HIDE, null);
+                    return true;
+                }
+            }
+        }
+
+
         return super.sendKeyEvent(event);
     }
 
