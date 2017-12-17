@@ -24504,7 +24504,6 @@ $as_echo "#define SDL_TIMER_UNIX 1" >>confdefs.h
     *-*-switch*)
         ARCH=switch
         CheckDeclarationAfterStatement
-        CheckDummyVideo
         CheckDiskAudio
         CheckDummyAudio
 

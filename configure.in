@@ -3851,7 +3851,6 @@ AC_HELP_STRING([--enable-render-d3d], [enable the Direct3D render driver [[defau
     *-*-switch*)
         ARCH=switch
         CheckDeclarationAfterStatement
-        CheckDummyVideo
         CheckDiskAudio
         CheckDummyAudio
 

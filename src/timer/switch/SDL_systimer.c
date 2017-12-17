@@ -1,6 +1,6 @@
 #include "../../SDL_internal.h"
 
-//#ifdef SDL_TIMER_SWITCH
+#if SDL_TIMER_SWITCH
 
 #include<libtransistor/types.h>
 #include<libtransistor/svc.h>
@@ -53,10 +53,6 @@ SDL_Delay(Uint32 ms)
 {
     svcSleepThread(((Uint64) ms) * 1000000); // milliseconds to nanoseconds
 }
-
-/*#warning "switch timers"
-#else
-#warning "no switch timers"
 
 #endif /* SDL_TIMER_SWITCH */
 
