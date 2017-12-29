@@ -32,6 +32,10 @@
 #include <atomic.h>
 #endif
 
+#if defined(__SWITCH__)
+#include <stdatomic.h>
+#endif
+
 #if defined(__WATCOMC__) && defined(__386__)
 SDL_COMPILE_TIME_ASSERT(locksize, 4==sizeof(SDL_SpinLock));
 extern _inline int _SDL_xchg_watcom(volatile int *a, int v);
@@ -110,6 +114,10 @@ SDL_AtomicTryLock(SDL_SpinLock *lock)
     /* Used for Solaris with non-gcc compilers. */
     return (SDL_bool) ((int) atomic_cas_32((volatile uint32_t*)lock, 0, 1) == 0);
 
+#elif defined(__SWITCH__)
+    uint64_t val = 0;
+    return (SDL_bool) atomic_compare_exchange_strong((volatile _Atomic uint64_t*)lock, &val, 1);
+    
 #else
 #error Please implement for your platform.
     return SDL_FALSE;
