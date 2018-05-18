@@ -31,33 +31,36 @@
 #include "SDL_assert.h"
 #include "SDL_events.h"
 
+#define JOYSTICK_MAX (0x7FFF)
+#define JOYSTICK_MIN (-0x8000)
+
 static hid_controller_button_mask_t button_map[] = {
-	BUTTON_A,
-	BUTTON_B,
-	BUTTON_X,
-	BUTTON_Y,
-	BUTTON_LSTICK,
-	BUTTON_RSTICK,
-	BUTTON_L,
-	BUTTON_R,
-	BUTTON_ZL,
-	BUTTON_ZR,
-	BUTTON_PLUS,
-	BUTTON_MINUS,
-	BUTTON_LEFT,
-	BUTTON_UP,
-	BUTTON_RIGHT,
-	BUTTON_DOWN,
-	BUTTON_LSTICK_LEFT,
-	BUTTON_LSTICK_UP,
-	BUTTON_LSTICK_DOWN,
-	BUTTON_LSTICK_RIGHT,
-	BUTTON_RSTICK_LEFT,
-	BUTTON_RSTICK_UP,
-	BUTTON_RSTICK_DOWN,
-	BUTTON_RSTICK_RIGHT,
-	BUTTON_SL,
-	BUTTON_SR
+    BUTTON_A,
+    BUTTON_B,
+    BUTTON_X,
+    BUTTON_Y,
+    BUTTON_LSTICK,
+    BUTTON_RSTICK,
+    BUTTON_L,
+    BUTTON_R,
+    BUTTON_ZL,
+    BUTTON_ZR,
+    BUTTON_PLUS,
+    BUTTON_MINUS,
+    BUTTON_LEFT,
+    BUTTON_UP,
+    BUTTON_RIGHT,
+    BUTTON_DOWN,
+    BUTTON_LSTICK_LEFT,
+    BUTTON_LSTICK_UP,
+    BUTTON_LSTICK_DOWN,
+    BUTTON_LSTICK_RIGHT,
+    BUTTON_RSTICK_LEFT,
+    BUTTON_RSTICK_UP,
+    BUTTON_RSTICK_DOWN,
+    BUTTON_RSTICK_RIGHT,
+    BUTTON_SL,
+    BUTTON_SR
 };
 
 /* Function to scan the system for joysticks.
@@ -66,22 +69,22 @@ static hid_controller_button_mask_t button_map[] = {
  * on an unrecoverable fatal error.
  */
 int SDL_SYS_JoystickInit(void) {
-  result_t result = hid_init();
-  if(result != RESULT_OK) {
-      return -1;
-  }
+    result_t result = hid_init();
+    if(result != RESULT_OK) {
+        return -1;
+    }
 
-  return 1;
+    return 1;
 }
 
 /* Function to return the number of joystick devices plugged in right now */
 int SDL_SYS_NumJoysticks(void) {
-  return 1; // TODO: Detect joycon number. Look at 'controller_state' bit0 or bit1
+    return 1; // TODO: Detect joycon number. Look at 'controller_state' bit0 or bit1
 }
 
 /* Function to cause any queued joystick insertions to be processed */
 void SDL_SYS_JoystickDetect(void) {
-  // TODO
+    // TODO
 }
 
 /* Function to get the device-dependent name of a joystick */
@@ -101,7 +104,7 @@ SDL_JoystickID SDL_SYS_GetInstanceIdOfDeviceIndex(int device_index) {
  */
 int SDL_SYS_JoystickOpen(SDL_Joystick * joystick, int device_index) {
     joystick->nbuttons = sizeof(button_map) / sizeof(hid_controller_button_mask_t);
-    joystick->naxes = 2;
+    joystick->naxes = 4;
     joystick->nhats = 0;
     return 0;
 }
@@ -121,14 +124,66 @@ static hid_controller_t *GetHidController(int idx) {
     return &hid_get_shared_memory()->controllers[idx];
 }
 
+static int32_t clamp(int32_t val, int32_t min, int32_t max) {
+    return val < min ? min : (val > max ? max : val);
+}
+
 /* Function to update the state of a joystick - called as a device poll.
  * This function shouldn't update the joystick structure directly,
  * but instead should call SDL_PrivateJoystick*() to deliver events
  * and update joystick device state.
  */
 void SDL_SYS_JoystickUpdate(SDL_Joystick * joystick) {
+    static int16_t x1_old = 0;
+    static int16_t y1_old = 0;
+    static int16_t x2_old = 0;
+    static int16_t y2_old = 0;
+
     hid_controller_t *joycon = GetHidController(0);
-	hid_controller_t* main = GetHidController(8);
+    hid_controller_t* main = GetHidController(8);
+
+    hid_controller_state_entry_t ent_joycon = 
+        joycon->main.entries[joycon->main.latest_idx];
+    hid_controller_state_entry_t ent_main = 
+        main->main.entries[main->main.latest_idx];
+
+    uint32_t x1_joycon = ent_joycon.left_stick_x;
+    uint32_t y1_joycon = ent_joycon.left_stick_y;
+    uint32_t x2_joycon = ent_joycon.right_stick_x;
+    uint32_t y2_joycon = ent_joycon.right_stick_y;
+
+    uint32_t x1_main = ent_main.left_stick_x;
+    uint32_t y1_main = ent_main.left_stick_y;
+    uint32_t x2_main = ent_main.right_stick_x;
+    uint32_t y2_main = ent_main.right_stick_y;
+
+    uint32_t ux1 = x1_joycon | x1_main;
+    uint32_t uy1 = y1_joycon | y1_main;
+    uint32_t ux2 = x2_joycon | x2_main;
+    uint32_t uy2 = y2_joycon | y2_main;
+
+    int16_t x1 = (int16_t) clamp(ux1, JOYSTICK_MIN, JOYSTICK_MAX);
+    int16_t y1 = (int16_t) clamp(uy1, JOYSTICK_MIN, JOYSTICK_MAX);
+    int16_t x2 = (int16_t) clamp(ux2, JOYSTICK_MIN, JOYSTICK_MAX);
+    int16_t y2 = (int16_t) clamp(uy2, JOYSTICK_MIN, JOYSTICK_MAX);
+
+
+    if(x1 != x1_old) {
+        SDL_PrivateJoystickAxis(joystick, 0, x1);
+        x1_old = x1;
+    }
+    if(y1 != y1_old) {
+        SDL_PrivateJoystickAxis(joystick, 1, y1);
+        y1_old = y1;
+    }
+    if(x2 != x2_old) {
+        SDL_PrivateJoystickAxis(joystick, 2, x2);
+        x2_old = x2;
+    }
+    if(y2 != y2_old) {
+        SDL_PrivateJoystickAxis(joystick, 3, y2);
+        y2_old = y2;
+    }
 
     int i;
     for(i = 0; i < joystick->nbuttons; i++) {
