@@ -23,7 +23,7 @@ $(BUILD_DIR)/Makefile:
 		"RANLIB=$(RANLIB)" \
 		--host=aarch64-none-switch \
 		--disable-audio \
-		--disable-joystick \
+		--enable-joystick \
 		--disable-power \
 		--disable-filesystem \
 		--disable-threads \
