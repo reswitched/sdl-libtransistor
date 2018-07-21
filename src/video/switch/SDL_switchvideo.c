@@ -118,12 +118,12 @@ static int SWITCH_CreateWindowFramebuffer(_THIS, SDL_Window *window, Uint32 *for
 	SWITCH_WindowData *data = SDL_calloc(1, sizeof(SWITCH_WindowData));
 	data->sdl_surface = surface;
 	display_open_layer(&data->libtransistor_surface);
-	
+
 	SDL_SetWindowData(window, SWITCH_DATA, data);
 	*format = surface_format;
 	*pixels = surface->pixels;
 	*pitch = surface->pitch;
-	
+
 	return 0;
 }
 
@@ -138,12 +138,12 @@ static int SWITCH_UpdateWindowFramebuffer(_THIS, SDL_Window *window, const SDL_R
 	SDL_Surface *sdl_surface = data->sdl_surface;
 	surface_t *lt_surface = &data->libtransistor_surface;
 	uint32_t *out_buffer = NULL;
-	
+
 	result_t r;
 	if((r = surface_dequeue_buffer(lt_surface, &out_buffer)) != RESULT_OK) {
 		return -1;
 	}
-	
+
 	gfx_slow_swizzling_blit(out_buffer, sdl_surface->pixels, sdl_surface->w, sdl_surface->h, 0, 0);
 
 	if((r = surface_queue_buffer(lt_surface)) != RESULT_OK) {
@@ -158,7 +158,7 @@ static void SWITCH_DestroyWindowFramebuffer(_THIS, SDL_Window *window) {
 
 	data = (SWITCH_WindowData*) SDL_GetWindowData(window, SWITCH_DATA);
 	SDL_FreeSurface(data->sdl_surface);
-	// TODO: destroy libtransistor surface
+	display_close_layer(&data->libtransistor_surface);
 	SDL_free(data);
 }
 
